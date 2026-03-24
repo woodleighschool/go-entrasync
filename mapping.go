@@ -32,10 +32,14 @@ func userFromGraph(u msgraphmodels.Userable) (User, bool) {
 	}
 
 	return User{
-		ID:          id,
-		DisplayName: stringOrEmpty(u.GetDisplayName()),
-		UPN:         stringOrEmpty(u.GetUserPrincipalName()),
-		Department:  stringOrEmpty(u.GetDepartment()),
+		ID:             id,
+		DisplayName:    stringOrEmpty(u.GetDisplayName()),
+		UPN:            stringOrEmpty(u.GetUserPrincipalName()),
+		Department:     stringOrEmpty(u.GetDepartment()),
+		MailNickname:   stringOrEmpty(u.GetMailNickname()),
+		OfficeLocation: stringOrEmpty(u.GetOfficeLocation()),
+		EmployeeID:     stringOrEmpty(u.GetEmployeeId()),
+		CompanyName:    stringOrEmpty(u.GetCompanyName()),
 	}, true
 }
 

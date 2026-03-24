@@ -1,0 +1,69 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "config:recommended",
+        ":dependencyDashboard",
+        ":semanticCommits",
+        ":separateMajorReleases",
+        ":combinePatchMinorReleases",
+        ":prHourlyLimitNone",
+        "helpers:pinGitHubActionDigests"
+    ],
+
+    "labels": ["dependencies"],
+    "rebaseWhen": "behind-base-branch",
+    "platformAutomerge": true,
+    "prConcurrentLimit": 10,
+
+    "ignorePaths": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/vendor/**"
+    ],
+
+    "lockFileMaintenance": {
+        "enabled": true,
+        "schedule": ["before 4am on monday"]
+    },
+
+    "packageRules": [
+        {
+            "description": "Frontend npm deps",
+            "matchManagers": ["npm"],
+            "matchFileNames": ["frontend/**"],
+            "groupName": "frontend non-major dependencies",
+            "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
+        },
+        {
+            "description": "Backend Go deps",
+            "matchManagers": ["gomod"],
+            "matchFileNames": ["backend/**"],
+            "groupName": "backend non-major dependencies",
+            "matchUpdateTypes": ["minor", "patch", "digest"]
+        },
+        {
+            "description": "GitHub Actions",
+            "matchManagers": ["github-actions"],
+            "groupName": "github actions",
+            "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+            "automerge": true
+        },
+        {
+            "description": "Dockerfile base images",
+            "matchManagers": ["dockerfile"],
+            "groupName": "docker images",
+            "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
+        },
+        {
+            "description": "Automerge safe low-risk updates",
+            "matchUpdateTypes": ["digest", "pin"],
+            "automerge": true
+        },
+        {
+            "description": "Keep majors separate and manual",
+            "matchUpdateTypes": ["major"],
+            "automerge": false
+        }
+    ]
+}

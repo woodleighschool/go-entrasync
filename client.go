@@ -23,24 +23,35 @@ type Config struct {
 	TenantID     string
 	ClientID     string
 	ClientSecret string
-
-	// GroupMemberConcurrency controls how many group-member fetches run in parallel
-	// during Snapshot. Zero uses the default of 8.
-	GroupMemberConcurrency int
 }
 
 // Client wraps a Microsoft Graph client.
 type Client struct {
-	graph       *msgraphsdk.GraphServiceClient
-	concurrency int
+	graph            *msgraphsdk.GraphServiceClient
+	concurrency      int
+	userSelectFields []string
+	fetchMemberships bool
 }
 
-// User is a minimal Entra user record returned by Graph.
+// applyDefaults sets the Client's default field values before options are applied.
+func applyDefaults(c *Client) {
+	c.concurrency = defaultGroupMemberConcurrency
+	c.userSelectFields = []string{"id", "displayName", "userPrincipalName"}
+}
+
+// User is an Entra user record returned by Graph.
 type User struct {
+	// Always fetched
 	ID          uuid.UUID
 	DisplayName string
 	UPN         string
-	Department  string
+
+	// Fetched only when requested via WithUserFields; zero-value otherwise.
+	Department     string
+	MailNickname   string
+	OfficeLocation string
+	EmployeeID     string
+	CompanyName    string
 }
 
 // Group is a minimal Entra group record returned by Graph.
@@ -58,7 +69,7 @@ type Snapshot struct {
 }
 
 // NewClient creates a Graph client using client credential authentication.
-func NewClient(cfg Config) (*Client, error) {
+func NewClient(cfg Config, opts ...Option) (*Client, error) {
 	cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create credential: %w", err)
@@ -72,12 +83,12 @@ func NewClient(cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("create graph client: %w", err)
 	}
 
-	concurrency := cfg.GroupMemberConcurrency
-	if concurrency <= 0 {
-		concurrency = defaultGroupMemberConcurrency
+	c := &Client{graph: g}
+	applyDefaults(c)
+	for _, o := range opts {
+		o(c)
 	}
-
-	return &Client{graph: g, concurrency: concurrency}, nil
+	return c, nil
 }
 
 // FetchUsers returns enabled member users.
@@ -86,7 +97,7 @@ func (c *Client) FetchUsers(ctx context.Context) ([]User, error) {
 	adapter := c.graph.GetAdapter()
 
 	top := maxGraphAPIPageSize
-	selectFields := []string{"id", "displayName", "userPrincipalName", "department"}
+	selectFields := c.userSelectFields
 	filter := "accountEnabled eq true and userType eq 'Member'"
 	count := true
 
@@ -207,7 +218,8 @@ func (c *Client) FetchGroupMembers(ctx context.Context, groupID uuid.UUID) ([]uu
 	return ids, nil
 }
 
-// Snapshot fetches users, groups, and all transitive group memberships in parallel.
+// Snapshot fetches users, groups, and optionally transitive group memberships.
+// Memberships are only fetched when the client was created with WithTransitiveMemberships.
 func (c *Client) Snapshot(ctx context.Context) (*Snapshot, error) {
 	users, err := c.FetchUsers(ctx)
 	if err != nil {
@@ -217,10 +229,15 @@ func (c *Client) Snapshot(ctx context.Context) (*Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	members, err := c.fetchAllGroupMembers(ctx, groups)
-	if err != nil {
-		return nil, err
+
+	var members map[uuid.UUID][]uuid.UUID
+	if c.fetchMemberships {
+		members, err = c.fetchAllGroupMembers(ctx, groups)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return &Snapshot{Users: users, Groups: groups, Members: members}, nil
 }
 
