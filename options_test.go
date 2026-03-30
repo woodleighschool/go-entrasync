@@ -27,6 +27,18 @@ func TestNewClientDefaults(t *testing.T) {
 	}
 }
 
+func TestNewClient_WiresOptions(t *testing.T) {
+	// nil graph is valid here — we're testing option wiring, not API calls.
+	c := NewClient(nil, WithGroupMemberConcurrency(4), WithTransitiveMemberships())
+
+	if c.concurrency != 4 {
+		t.Errorf("concurrency = %d, want 4", c.concurrency)
+	}
+	if !c.fetchMemberships {
+		t.Error("fetchMemberships should be true")
+	}
+}
+
 func TestWithUserFields(t *testing.T) {
 	c := &Client{}
 	applyDefaults(c)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	msgraphgroups "github.com/microsoftgraph/msgraph-sdk-go/groups"
@@ -18,14 +17,7 @@ const (
 	defaultGroupMemberConcurrency = 8
 )
 
-// Config holds the configuration required to authenticate to Microsoft Graph.
-type Config struct {
-	TenantID     string
-	ClientID     string
-	ClientSecret string
-}
-
-// Client wraps a Microsoft Graph client.
+// Client wraps a Microsoft Graph client for Entra bulk-fetch operations.
 type Client struct {
 	graph            *msgraphsdk.GraphServiceClient
 	concurrency      int
@@ -37,6 +29,17 @@ type Client struct {
 func applyDefaults(c *Client) {
 	c.concurrency = defaultGroupMemberConcurrency
 	c.userSelectFields = []string{"id", "displayName", "userPrincipalName"}
+}
+
+// NewClient creates an entrasync client using an existing Graph service client.
+// The caller is responsible for creating and managing the Graph client's lifecycle.
+func NewClient(graph *msgraphsdk.GraphServiceClient, opts ...Option) *Client {
+	c := &Client{graph: graph}
+	applyDefaults(c)
+	for _, o := range opts {
+		o(c)
+	}
+	return c
 }
 
 // User is an Entra user record returned by Graph.
@@ -66,29 +69,6 @@ type Snapshot struct {
 	Users   []User
 	Groups  []Group
 	Members map[uuid.UUID][]uuid.UUID // group ID → member IDs
-}
-
-// NewClient creates a Graph client using client credential authentication.
-func NewClient(cfg Config, opts ...Option) (*Client, error) {
-	cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create credential: %w", err)
-	}
-
-	g, err := msgraphsdk.NewGraphServiceClientWithCredentials(
-		cred,
-		[]string{"https://graph.microsoft.com/.default"},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create graph client: %w", err)
-	}
-
-	c := &Client{graph: g}
-	applyDefaults(c)
-	for _, o := range opts {
-		o(c)
-	}
-	return c, nil
 }
 
 // FetchUsers returns enabled member users.
